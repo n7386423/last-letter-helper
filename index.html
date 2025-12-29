@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Last Letter Trap Helper</title>
+<style>
+  body {
+    background: black;
+    color: #00ff00;
+    font-family: Consolas, monospace;
+  }
+  input, textarea, button {
+    background: black;
+    color: #00ff00;
+    border: 1px solid #00ff00;
+    font-size: 18px;
+  }
+  textarea {
+    width: 420px;
+    height: 300px;
+    font-size: 16px;
+  }
+</style>
+</head>
+
+<body>
+<h2>Last Letter Trap Helper</h2>
+
+<label>
+  <input type="checkbox" id="xToggle">
+  Enable X traps
+</label><br><br>
+
+<input id="prefix" placeholder="Enter prefix" autofocus>
+<button onclick="search()">Search</button>
+<br><br>
+
+<textarea id="output" readonly></textarea>
+
+<script>
+// ================= WORD LIST =================
+// PASTE YOUR WORDS HERE (one per line, inside backticks)
+const WORDS = `
+savvy
+divvy
+privy
+envy
+lazy
+crazed
+national
+rational
+eels
+eel
+ales
+ian
+ism
+nal
+leat
+ats
+hoax
+lynx
+sphinx
+yunx
+`.trim().split("\n");
+
+// ================= TRAPS =================
+
+const PRIMARY_TRAPS = [
+  "vy", "ez", "ales", "ian", "nal",
+  "eels", "eel", "nel", "ism", "leat", "ats"
+];
+
+const X_TRAPS = ["hoax", "lynx", "sphinx", "yunx", "oax"];
+
+function score(word) {
+  let s = 0;
+  let w = word.toLowerCase();
+
+  for (let t of PRIMARY_TRAPS) {
+    if (w.endsWith(t)) {
+      s += t === "vy" ? 500 : 320;
+    }
+  }
+
+  if (document.getElementById("xToggle").checked) {
+    for (let t of X_TRAPS) {
+      if (w.endsWith(t)) s += 200;
+    }
+  }
+
+  let len = w.length;
+  if (len >= 4 && len <= 9) s += 80;
+  else s -= Math.abs(len - 6) * 5;
+
+  return s;
+}
+
+function search() {
+  let p = document.getElementById("prefix").value.toLowerCase();
+  let out = document.getElementById("output");
+  out.value = "";
+
+  if (!p) return;
+
+  let matches = WORDS.filter(w => w.startsWith(p));
+  if (!matches.length) {
+    out.value = "No valid words.";
+    document.getElementById("prefix").value = "";
+    return;
+  }
+
+  matches.sort((a,b) => score(b) - score(a));
+
+  out.value = "BEST CONTINUABLE TRAP:\n";
+  out.value += matches[0] + "\n\nOther options:\n";
+  matches.slice(1, 15).forEach(w => out.value += w + "\n");
+
+  // auto-clear
+  document.getElementById("prefix").value = "";
+}
+</script>
+
+</body>
+</html>
