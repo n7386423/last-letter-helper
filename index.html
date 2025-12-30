@@ -1,129 +1,403 @@
 import javax.swing.*;
-import javax.swing.text.DefaultCaret;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.List;
 
-public class LastLetterTrapHelper {
-    private static final List<String> TRAP_ENDINGS = Arrays.asList("x", "q", "z", "j", "v");
-    private static final List<String> WORDS = new ArrayList<>();
-
+public class LastLetterHelper {
+    
+    // GUI Components
     private JFrame frame;
     private JTextField entry;
     private JTextArea output;
-
-    public static void main(String[] args) {
-        loadWords("words.txt");
-        SwingUtilities.invokeLater(() -> new LastLetterTrapHelper().createAndShowGUI());
+    private JLabel modeLabel;
+    
+    // Toggle variables
+    private JCheckBox xOnlyCheck;
+    private JCheckBox superLongCheck;
+    private HashMap<String, JCheckBox> trapChecks = new HashMap<>();
+    
+    // Word list
+    private HashSet<String> words = new HashSet<>();
+    private static final String WORDS_FILE = "words.txt";
+    
+    // Trap options
+    private static final String[] TRAP_OPTIONS = {
+        "ae", "vy", "ez", "ying", "sz", "etam", 
+        "gly", "ses", "soss", "ian", "ales", "iny", "wers"
+    };
+    
+    // Best traps (enabled by default)
+    private static final Set<String> BEST_TRAPS = new HashSet<>(Arrays.asList("ae", "vy", "ez"));
+    
+    public LastLetterHelper() {
+        loadWords();
+        initializeGUI();
     }
-
-    private static void loadWords(String filename) {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(filename), StandardCharsets.UTF_8))) {
+    
+    private void loadWords() {
+        try {
+            File file = new File(WORDS_FILE);
+            if (!file.exists()) {
+                file.createNewFile();
+            }
+            
+            BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
-            while ((line = br.readLine()) != null) {
-                line = line.trim();
+            while ((line = reader.readLine()) != null) {
+                line = line.trim().toLowerCase();
                 if (!line.isEmpty()) {
-                    WORDS.add(line);
+                    words.add(line);
                 }
             }
+            reader.close();
+            
+            System.out.println("Loaded " + words.size() + " words");
+            
         } catch (IOException e) {
-            JOptionPane.showMessageDialog(null, "Error loading words file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            System.exit(1);
+            System.err.println("Error loading words: " + e.getMessage());
+            // Add some default words
+            words.addAll(Arrays.asList(
+                "antique", "box", "quiz", "jazz", "vex", "aquarium", "quartz", 
+                "jaguar", "vortex", "xylophone", "equinox", "banjo", "advocate", 
+                "hexagon", "jinx", "quixotic", "vibrant", "zeppelin", "jackbox"
+            ));
         }
     }
-
-    private int scoreWord(String word) {
-        int score = 0;
-        String last = word.substring(word.length() - 1).toLowerCase();
-        int length = word.length();
-
-        if (TRAP_ENDINGS.contains(last)) {
-            score += 100;
-        }
-        if ("q".equals(last)) {
-            score += 50;
-        }
-        if (length >= 5 && length <= 10) {
-            score += 40;
-        } else {
-            score -= Math.abs(length - 7) * 3;
-        }
-        return score;
-    }
-
-    private void search() {
-        String prefix = entry.getText().trim().toLowerCase();
-        output.setText("");
-
-        if (prefix.isEmpty()) {
-            return;
-        }
-
-        List<String> matches = new ArrayList<>();
-        for (String w : WORDS) {
-            if (w.toLowerCase().startsWith(prefix)) {
-                matches.add(w);
-            }
-        }
-
-        if (matches.isEmpty()) {
-            output.append("No valid words.");
-            return;
-        }
-
-        matches.sort((a, b) -> Integer.compare(scoreWord(b), scoreWord(a)));
-
-        output.append("BEST FAST TRAP:\n");
-        output.append(matches.get(0) + "\n\n");
-
-        output.append("Other strong options:\n");
-        int limit = Math.min(15, matches.size());
-        for (int i = 1; i < limit; i++) {
-            output.append(matches.get(i) + "\n");
-        }
-    }
-
-    private void createAndShowGUI() {
-        frame = new JFrame("Last Letter Trap Helper");
+    
+    private void initializeGUI() {
+        frame = new JFrame("Roblox Last Letter Helper");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setAlwaysOnTop(true);
         frame.setLayout(new BorderLayout());
-
+        frame.getContentPane().setBackground(Color.BLACK);
+        
+        // Main panel with padding
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(Color.BLACK);
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // Entry field
         entry = new JTextField();
-        entry.setFont(new Font("Consolas", Font.PLAIN, 18));
-        entry.setColumns(22);
+        entry.setFont(new Font("Consolas", Font.PLAIN, 20));
+        entry.setBackground(Color.BLACK);
+        entry.setForeground(new Color(57, 255, 20)); // #39FF14
+        entry.setCaretColor(new Color(57, 255, 20));
+        entry.setMaximumSize(new Dimension(400, 40));
         entry.addActionListener(e -> search());
-
-        JButton btn = new JButton("Search");
-        btn.setFont(new Font("Consolas", Font.PLAIN, 14));
-        btn.addActionListener(e -> search());
-
-        output = new JTextArea(16, 38);
+        
+        // Add CTRL+S listener
+        entry.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK), "saveWord");
+        entry.getActionMap().put("saveWord", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                saveWord();
+            }
+        });
+        
+        // Search button
+        JButton searchBtn = new JButton("Search");
+        searchBtn.setFont(new Font("Consolas", Font.PLAIN, 14));
+        searchBtn.setBackground(Color.BLACK);
+        searchBtn.setForeground(new Color(57, 255, 20));
+        searchBtn.setFocusPainted(false);
+        searchBtn.addActionListener(e -> search());
+        
+        // Main toggles panel
+        JPanel togglePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        togglePanel.setBackground(Color.BLACK);
+        
+        // X-ONLY toggle
+        xOnlyCheck = new JCheckBox("X-ONLY");
+        styleCheckbox(xOnlyCheck);
+        xOnlyCheck.addActionListener(e -> updateModeDisplay());
+        
+        // SUPER LONG toggle
+        superLongCheck = new JCheckBox("SUPER LONG");
+        styleCheckbox(superLongCheck);
+        superLongCheck.addActionListener(e -> updateModeDisplay());
+        
+        togglePanel.add(xOnlyCheck);
+        togglePanel.add(superLongCheck);
+        
+        // Mode indicator
+        modeLabel = new JLabel("NORMAL | REGULAR");
+        modeLabel.setFont(new Font("Consolas", Font.PLAIN, 10));
+        modeLabel.setForeground(new Color(57, 255, 20));
+        modeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        // Trap toggles panel
+        JPanel trapPanel = createTrapToggles();
+        
+        // Output area
+        output = new JTextArea(22, 40);
         output.setFont(new Font("Consolas", Font.PLAIN, 16));
+        output.setBackground(Color.BLACK);
+        output.setForeground(new Color(57, 255, 20));
         output.setEditable(false);
         output.setLineWrap(true);
         output.setWrapStyleWord(true);
-
-        // Auto-scroll to top on new text
-        DefaultCaret caret = (DefaultCaret) output.getCaret();
-        caret.setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
-
-        JPanel topPanel = new JPanel();
-        topPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 8));
-        topPanel.add(entry);
-        topPanel.add(btn);
-
+        
         JScrollPane scrollPane = new JScrollPane(output);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
-
-        frame.add(topPanel, BorderLayout.NORTH);
-        frame.add(scrollPane, BorderLayout.CENTER);
-
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+        
+        // Add instructions
+        String instructions = "INSTRUCTIONS:\n" +
+                            "• Type letters → Enter/Search\n" +
+                            "• X-ONLY: Only words ending in X\n" +
+                            "• SUPER LONG: All words by length\n" +
+                            "• CTRL+S to save words\n" +
+                            "• TRAP ENDINGS: Choose which to prioritize\n" +
+                            "• ae/vy/ez enabled by default\n\n" +
+                            "NORMAL: Filters >12 letters, uses traps\n" +
+                            "SUPER LONG: All lengths, ignores traps\n" +
+                            "=".repeat(40) + "\n";
+        
+        output.setText(instructions);
+        
+        // Add components to main panel
+        mainPanel.add(entry);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        mainPanel.add(searchBtn);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        mainPanel.add(togglePanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(modeLabel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        mainPanel.add(trapPanel);
+        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        mainPanel.add(scrollPane);
+        
+        frame.add(mainPanel);
         frame.pack();
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+        frame.setAlwaysOnTop(true);
+    }
+    
+    private JPanel createTrapToggles() {
+        JPanel trapPanel = new JPanel(new GridLayout(0, 4, 2, 2));
+        trapPanel.setBackground(Color.BLACK);
+        trapPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(new Color(57, 255, 20)),
+            "TRAP ENDINGS",
+            0, 0,
+            new Font("Consolas", Font.BOLD, 9),
+            new Color(57, 255, 20)
+        ));
+        
+        for (String trap : TRAP_OPTIONS) {
+            JCheckBox check = new JCheckBox(trap);
+            styleCheckbox(check);
+            
+            // Enable best traps by default
+            if (BEST_TRAPS.contains(trap)) {
+                check.setSelected(true);
+            }
+            
+            trapChecks.put(trap, check);
+            trapPanel.add(check);
+        }
+        
+        return trapPanel;
+    }
+    
+    private void styleCheckbox(JCheckBox check) {
+        check.setFont(new Font("Consolas", Font.PLAIN, 8));
+        check.setBackground(Color.BLACK);
+        check.setForeground(new Color(57, 255, 20));
+        check.setFocusPainted(false);
+        check.setContentAreaFilled(false);
+        check.setOpaque(false);
+    }
+    
+    private void updateModeDisplay() {
+        String mode = xOnlyCheck.isSelected() ? "X-ONLY" : "NORMAL";
+        String length = superLongCheck.isSelected() ? "SUPER LONG" : "REGULAR";
+        modeLabel.setText(mode + " | " + length);
+    }
+    
+    private int scoreWord(String word, boolean superLongEnabled) {
+        String w = word.toLowerCase();
+        int length = w.length();
+        int score = 0;
+        
+        // X-only mode filter
+        if (xOnlyCheck.isSelected() && !w.endsWith("x")) {
+            return -1000;
+        }
+        
+        // Super long filter
+        if (!superLongEnabled && length > 12) {
+            return -1000;
+        }
+        
+        // Check enabled traps
+        for (Map.Entry<String, JCheckBox> entry : trapChecks.entrySet()) {
+            if (entry.getValue().isSelected() && w.endsWith(entry.getKey())) {
+                if (BEST_TRAPS.contains(entry.getKey())) {
+                    score += 400;
+                } else {
+                    score += 300;
+                }
+                break; // Only score highest priority trap
+            }
+        }
+        
+        // Length scoring
+        if (superLongEnabled) {
+            // SUPER LONG MODE: prioritize length
+            score += length * 10;
+        } else {
+            // NORMAL MODE: prefer medium length
+            if (length >= 4 && length <= 9) {
+                score += 80;
+            } else if (length > 12) {
+                score -= 40;
+            }
+        }
+        
+        // Small penalty for length in normal mode
+        if (!superLongEnabled) {
+            score -= (int)(length * 1.2);
+        }
+        
+        return score;
+    }
+    
+    private void search() {
+        String raw = entry.getText().trim().toLowerCase();
+        entry.setText("");
+        output.setText("");
+        
+        if (raw.isEmpty()) {
+            return;
+        }
+        
+        boolean xOnlyMode = xOnlyCheck.isSelected();
+        boolean superLongEnabled = superLongCheck.isSelected();
+        
+        Set<String> seen = new HashSet<>();
+        boolean foundAny = false;
+        
+        for (int i = raw.length(); i > 0; i--) {
+            String prefix = raw.substring(raw.length() - i);
+            
+            List<String> matches = new ArrayList<>();
+            for (String w : words) {
+                if (seen.contains(w)) {
+                    continue;
+                }
+                
+                // X-only mode filter
+                if (xOnlyMode && !w.endsWith("x")) {
+                    continue;
+                }
+                
+                // Super long filter
+                if (!superLongEnabled && w.length() > 12) {
+                    continue;
+                }
+                
+                // Prefix match
+                if (w.startsWith(prefix)) {
+                    matches.add(w);
+                }
+            }
+            
+            if (!matches.isEmpty()) {
+                foundAny = true;
+                
+                // Sort based on mode
+                if (superLongEnabled) {
+                    // SUPER LONG: sort by length (longest first)
+                    matches.sort((a, b) -> Integer.compare(b.length(), a.length()));
+                } else {
+                    // NORMAL: sort by score
+                    matches.sort((a, b) -> {
+                        int scoreA = scoreWord(a, superLongEnabled);
+                        int scoreB = scoreWord(b, superLongEnabled);
+                        return Integer.compare(scoreB, scoreA);
+                    });
+                }
+                
+                // Filter out negative scores
+                List<String> filteredRanked = new ArrayList<>();
+                for (String w : matches) {
+                    if (superLongEnabled || scoreWord(w, superLongEnabled) > -500) {
+                        filteredRanked.add(w);
+                    }
+                    if (filteredRanked.size() >= 35) {
+                        break;
+                    }
+                }
+                
+                // Add mode indicators
+                StringBuilder modeInfo = new StringBuilder();
+                if (xOnlyMode) modeInfo.append("X-ONLY");
+                if (superLongEnabled) {
+                    if (!modeInfo.isEmpty()) modeInfo.append(" + ");
+                    modeInfo.append("SUPER LONG");
+                }
+                
+                String modeStr = modeInfo.isEmpty() ? "" : " [" + modeInfo + "]";
+                
+                output.append("\nPrefix '" + prefix + "'" + modeStr + " → " + matches.size() + " words\n");
+                
+                // Show words
+                for (String w : filteredRanked) {
+                    output.append(w + "\n");
+                    seen.add(w);
+                }
+            }
+        }
+        
+        if (!foundAny) {
+            String modeMsg = xOnlyMode ? " (X-ONLY mode)" : "";
+            output.append("NO WORDS FOUND" + modeMsg + "\n");
+            
+            if (xOnlyMode) {
+                output.append("Suggestions: Try disabling X-ONLY mode\n");
+            }
+        }
+    }
+    
+    private void saveWord() {
+        String word = entry.getText().trim().toLowerCase();
+        
+        if (word.isEmpty() || word.length() < 2 || word.contains(" ")) {
+            return;
+        }
+        
+        if (words.contains(word)) {
+            output.append("\nAlready saved: " + word + "\n");
+            return;
+        }
+        
+        try {
+            FileWriter writer = new FileWriter(WORDS_FILE, true);
+            writer.write(word + "\n");
+            writer.close();
+            
+            words.add(word);
+            entry.setText("");
+            output.append("\nSaved word: " + word + "\n");
+            
+        } catch (IOException e) {
+            output.append("\nError saving word: " + e.getMessage() + "\n");
+        }
+    }
+    
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            new LastLetterHelper();
+        });
     }
 }
