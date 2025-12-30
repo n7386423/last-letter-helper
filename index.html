@@ -1,403 +1,142 @@
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
-import java.util.*;
-import java.util.List;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Roblox Last Letter Helper</title>
+<style>
+  body { background: black; color: #39FF14; font-family: Consolas, monospace; }
+  input, button, textarea { font-family: Consolas, monospace; }
+  input { font-size: 18px; background: black; color: #39FF14; border: 1px solid #39FF14; }
+  button { font-size: 16px; background: black; color: #39FF14; border: 1px solid #39FF14; cursor: pointer; }
+  textarea { width: 600px; height: 500px; background: black; color: #39FF14; font-size: 16px; }
+  .toggle-group { margin: 5px 0; }
+  .trap-checkbox { margin: 0 5px; }
+</style>
+</head>
+<body>
 
-public class LastLetterHelper {
-    
-    // GUI Components
-    private JFrame frame;
-    private JTextField entry;
-    private JTextArea output;
-    private JLabel modeLabel;
-    
-    // Toggle variables
-    private JCheckBox xOnlyCheck;
-    private JCheckBox superLongCheck;
-    private HashMap<String, JCheckBox> trapChecks = new HashMap<>();
-    
-    // Word list
-    private HashSet<String> words = new HashSet<>();
-    private static final String WORDS_FILE = "words.txt";
-    
-    // Trap options
-    private static final String[] TRAP_OPTIONS = {
-        "ae", "vy", "ez", "ying", "sz", "etam", 
-        "gly", "ses", "soss", "ian", "ales", "iny", "wers"
-    };
-    
-    // Best traps (enabled by default)
-    private static final Set<String> BEST_TRAPS = new HashSet<>(Arrays.asList("ae", "vy", "ez"));
-    
-    public LastLetterHelper() {
-        loadWords();
-        initializeGUI();
+<h2>Roblox Last Letter Helper</h2>
+<input id="prefixInput" type="text" placeholder="Type letters and press Enter" />
+<button id="searchBtn">Search</button>
+
+<div class="toggle-group">
+  <label><input type="checkbox" id="xOnly"> X-ONLY</label>
+  <label><input type="checkbox" id="superLong"> SUPER LONG</label>
+</div>
+
+<div class="toggle-group" id="trapToggles"></div>
+
+<textarea id="output" readonly></textarea>
+
+<script>
+// ================= WORDS =================
+// Load your words here (example, replace with full words list)
+const WORDS = [
+  "apple", "axe", "vying", "eazy", "ales", "eels", "ian", "zymurgy", "extra", "x"
+];
+
+// ================= TRAPS =================
+const TRAPS = ["ae", "vy", "ez", "ying", "sz", "etam", "gly", "ses", "soss", "ian", "ales", "iny", "wers"];
+const trapToggles = {}; // will hold checkbox states
+
+// Create trap checkboxes
+const trapContainer = document.getElementById("trapToggles");
+TRAPS.forEach(trap => {
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.id = trap;
+  cb.checked = ["ae","vy","ez"].includes(trap);
+  trapToggles[trap] = cb;
+  const label = document.createElement("label");
+  label.className = "trap-checkbox";
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(trap));
+  trapContainer.appendChild(label);
+});
+
+// ================= SCORING =================
+function scoreWord(word, superLong) {
+  let score = 0;
+  const w = word.toLowerCase();
+
+  const xOnly = document.getElementById("xOnly").checked;
+  if (xOnly && !w.endsWith("x")) return -1000;
+
+  const length = w.length;
+  if (!superLong && length > 12) return -1000;
+
+  for (const trap of TRAPS) {
+    if (trapToggles[trap].checked && w.endsWith(trap)) {
+      if (["ae","vy","ez"].includes(trap)) score += 400;
+      else score += 300;
+      break;
     }
-    
-    private void loadWords() {
-        try {
-            File file = new File(WORDS_FILE);
-            if (!file.exists()) {
-                file.createNewFile();
-            }
-            
-            BufferedReader reader = new BufferedReader(new FileReader(file));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim().toLowerCase();
-                if (!line.isEmpty()) {
-                    words.add(line);
-                }
-            }
-            reader.close();
-            
-            System.out.println("Loaded " + words.size() + " words");
-            
-        } catch (IOException e) {
-            System.err.println("Error loading words: " + e.getMessage());
-            // Add some default words
-            words.addAll(Arrays.asList(
-                "antique", "box", "quiz", "jazz", "vex", "aquarium", "quartz", 
-                "jaguar", "vortex", "xylophone", "equinox", "banjo", "advocate", 
-                "hexagon", "jinx", "quixotic", "vibrant", "zeppelin", "jackbox"
-            ));
-        }
-    }
-    
-    private void initializeGUI() {
-        frame = new JFrame("Roblox Last Letter Helper");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setLayout(new BorderLayout());
-        frame.getContentPane().setBackground(Color.BLACK);
-        
-        // Main panel with padding
-        JPanel mainPanel = new JPanel();
-        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
-        mainPanel.setBackground(Color.BLACK);
-        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        
-        // Entry field
-        entry = new JTextField();
-        entry.setFont(new Font("Consolas", Font.PLAIN, 20));
-        entry.setBackground(Color.BLACK);
-        entry.setForeground(new Color(57, 255, 20)); // #39FF14
-        entry.setCaretColor(new Color(57, 255, 20));
-        entry.setMaximumSize(new Dimension(400, 40));
-        entry.addActionListener(e -> search());
-        
-        // Add CTRL+S listener
-        entry.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK), "saveWord");
-        entry.getActionMap().put("saveWord", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                saveWord();
-            }
-        });
-        
-        // Search button
-        JButton searchBtn = new JButton("Search");
-        searchBtn.setFont(new Font("Consolas", Font.PLAIN, 14));
-        searchBtn.setBackground(Color.BLACK);
-        searchBtn.setForeground(new Color(57, 255, 20));
-        searchBtn.setFocusPainted(false);
-        searchBtn.addActionListener(e -> search());
-        
-        // Main toggles panel
-        JPanel togglePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        togglePanel.setBackground(Color.BLACK);
-        
-        // X-ONLY toggle
-        xOnlyCheck = new JCheckBox("X-ONLY");
-        styleCheckbox(xOnlyCheck);
-        xOnlyCheck.addActionListener(e -> updateModeDisplay());
-        
-        // SUPER LONG toggle
-        superLongCheck = new JCheckBox("SUPER LONG");
-        styleCheckbox(superLongCheck);
-        superLongCheck.addActionListener(e -> updateModeDisplay());
-        
-        togglePanel.add(xOnlyCheck);
-        togglePanel.add(superLongCheck);
-        
-        // Mode indicator
-        modeLabel = new JLabel("NORMAL | REGULAR");
-        modeLabel.setFont(new Font("Consolas", Font.PLAIN, 10));
-        modeLabel.setForeground(new Color(57, 255, 20));
-        modeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        // Trap toggles panel
-        JPanel trapPanel = createTrapToggles();
-        
-        // Output area
-        output = new JTextArea(22, 40);
-        output.setFont(new Font("Consolas", Font.PLAIN, 16));
-        output.setBackground(Color.BLACK);
-        output.setForeground(new Color(57, 255, 20));
-        output.setEditable(false);
-        output.setLineWrap(true);
-        output.setWrapStyleWord(true);
-        
-        JScrollPane scrollPane = new JScrollPane(output);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-        
-        // Add instructions
-        String instructions = "INSTRUCTIONS:\n" +
-                            "• Type letters → Enter/Search\n" +
-                            "• X-ONLY: Only words ending in X\n" +
-                            "• SUPER LONG: All words by length\n" +
-                            "• CTRL+S to save words\n" +
-                            "• TRAP ENDINGS: Choose which to prioritize\n" +
-                            "• ae/vy/ez enabled by default\n\n" +
-                            "NORMAL: Filters >12 letters, uses traps\n" +
-                            "SUPER LONG: All lengths, ignores traps\n" +
-                            "=".repeat(40) + "\n";
-        
-        output.setText(instructions);
-        
-        // Add components to main panel
-        mainPanel.add(entry);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        mainPanel.add(searchBtn);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        mainPanel.add(togglePanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(modeLabel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 5)));
-        mainPanel.add(trapPanel);
-        mainPanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        mainPanel.add(scrollPane);
-        
-        frame.add(mainPanel);
-        frame.pack();
-        frame.setLocationRelativeTo(null);
-        frame.setVisible(true);
-        frame.setAlwaysOnTop(true);
-    }
-    
-    private JPanel createTrapToggles() {
-        JPanel trapPanel = new JPanel(new GridLayout(0, 4, 2, 2));
-        trapPanel.setBackground(Color.BLACK);
-        trapPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(57, 255, 20)),
-            "TRAP ENDINGS",
-            0, 0,
-            new Font("Consolas", Font.BOLD, 9),
-            new Color(57, 255, 20)
-        ));
-        
-        for (String trap : TRAP_OPTIONS) {
-            JCheckBox check = new JCheckBox(trap);
-            styleCheckbox(check);
-            
-            // Enable best traps by default
-            if (BEST_TRAPS.contains(trap)) {
-                check.setSelected(true);
-            }
-            
-            trapChecks.put(trap, check);
-            trapPanel.add(check);
-        }
-        
-        return trapPanel;
-    }
-    
-    private void styleCheckbox(JCheckBox check) {
-        check.setFont(new Font("Consolas", Font.PLAIN, 8));
-        check.setBackground(Color.BLACK);
-        check.setForeground(new Color(57, 255, 20));
-        check.setFocusPainted(false);
-        check.setContentAreaFilled(false);
-        check.setOpaque(false);
-    }
-    
-    private void updateModeDisplay() {
-        String mode = xOnlyCheck.isSelected() ? "X-ONLY" : "NORMAL";
-        String length = superLongCheck.isSelected() ? "SUPER LONG" : "REGULAR";
-        modeLabel.setText(mode + " | " + length);
-    }
-    
-    private int scoreWord(String word, boolean superLongEnabled) {
-        String w = word.toLowerCase();
-        int length = w.length();
-        int score = 0;
-        
-        // X-only mode filter
-        if (xOnlyCheck.isSelected() && !w.endsWith("x")) {
-            return -1000;
-        }
-        
-        // Super long filter
-        if (!superLongEnabled && length > 12) {
-            return -1000;
-        }
-        
-        // Check enabled traps
-        for (Map.Entry<String, JCheckBox> entry : trapChecks.entrySet()) {
-            if (entry.getValue().isSelected() && w.endsWith(entry.getKey())) {
-                if (BEST_TRAPS.contains(entry.getKey())) {
-                    score += 400;
-                } else {
-                    score += 300;
-                }
-                break; // Only score highest priority trap
-            }
-        }
-        
-        // Length scoring
-        if (superLongEnabled) {
-            // SUPER LONG MODE: prioritize length
-            score += length * 10;
-        } else {
-            // NORMAL MODE: prefer medium length
-            if (length >= 4 && length <= 9) {
-                score += 80;
-            } else if (length > 12) {
-                score -= 40;
-            }
-        }
-        
-        // Small penalty for length in normal mode
-        if (!superLongEnabled) {
-            score -= (int)(length * 1.2);
-        }
-        
-        return score;
-    }
-    
-    private void search() {
-        String raw = entry.getText().trim().toLowerCase();
-        entry.setText("");
-        output.setText("");
-        
-        if (raw.isEmpty()) {
-            return;
-        }
-        
-        boolean xOnlyMode = xOnlyCheck.isSelected();
-        boolean superLongEnabled = superLongCheck.isSelected();
-        
-        Set<String> seen = new HashSet<>();
-        boolean foundAny = false;
-        
-        for (int i = raw.length(); i > 0; i--) {
-            String prefix = raw.substring(raw.length() - i);
-            
-            List<String> matches = new ArrayList<>();
-            for (String w : words) {
-                if (seen.contains(w)) {
-                    continue;
-                }
-                
-                // X-only mode filter
-                if (xOnlyMode && !w.endsWith("x")) {
-                    continue;
-                }
-                
-                // Super long filter
-                if (!superLongEnabled && w.length() > 12) {
-                    continue;
-                }
-                
-                // Prefix match
-                if (w.startsWith(prefix)) {
-                    matches.add(w);
-                }
-            }
-            
-            if (!matches.isEmpty()) {
-                foundAny = true;
-                
-                // Sort based on mode
-                if (superLongEnabled) {
-                    // SUPER LONG: sort by length (longest first)
-                    matches.sort((a, b) -> Integer.compare(b.length(), a.length()));
-                } else {
-                    // NORMAL: sort by score
-                    matches.sort((a, b) -> {
-                        int scoreA = scoreWord(a, superLongEnabled);
-                        int scoreB = scoreWord(b, superLongEnabled);
-                        return Integer.compare(scoreB, scoreA);
-                    });
-                }
-                
-                // Filter out negative scores
-                List<String> filteredRanked = new ArrayList<>();
-                for (String w : matches) {
-                    if (superLongEnabled || scoreWord(w, superLongEnabled) > -500) {
-                        filteredRanked.add(w);
-                    }
-                    if (filteredRanked.size() >= 35) {
-                        break;
-                    }
-                }
-                
-                // Add mode indicators
-                StringBuilder modeInfo = new StringBuilder();
-                if (xOnlyMode) modeInfo.append("X-ONLY");
-                if (superLongEnabled) {
-                    if (!modeInfo.isEmpty()) modeInfo.append(" + ");
-                    modeInfo.append("SUPER LONG");
-                }
-                
-                String modeStr = modeInfo.isEmpty() ? "" : " [" + modeInfo + "]";
-                
-                output.append("\nPrefix '" + prefix + "'" + modeStr + " → " + matches.size() + " words\n");
-                
-                // Show words
-                for (String w : filteredRanked) {
-                    output.append(w + "\n");
-                    seen.add(w);
-                }
-            }
-        }
-        
-        if (!foundAny) {
-            String modeMsg = xOnlyMode ? " (X-ONLY mode)" : "";
-            output.append("NO WORDS FOUND" + modeMsg + "\n");
-            
-            if (xOnlyMode) {
-                output.append("Suggestions: Try disabling X-ONLY mode\n");
-            }
-        }
-    }
-    
-    private void saveWord() {
-        String word = entry.getText().trim().toLowerCase();
-        
-        if (word.isEmpty() || word.length() < 2 || word.contains(" ")) {
-            return;
-        }
-        
-        if (words.contains(word)) {
-            output.append("\nAlready saved: " + word + "\n");
-            return;
-        }
-        
-        try {
-            FileWriter writer = new FileWriter(WORDS_FILE, true);
-            writer.write(word + "\n");
-            writer.close();
-            
-            words.add(word);
-            entry.setText("");
-            output.append("\nSaved word: " + word + "\n");
-            
-        } catch (IOException e) {
-            output.append("\nError saving word: " + e.getMessage() + "\n");
-        }
-    }
-    
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            new LastLetterHelper();
-        });
-    }
+  }
+
+  if (superLong) score += length*10;
+  else {
+    if (length>=4 && length<=9) score += 80;
+    else if(length>12) score -= 40;
+    score -= length*1.2;
+  }
+
+  return score;
 }
+
+// ================= SEARCH =================
+function search() {
+  const raw = document.getElementById("prefixInput").value.trim().toLowerCase();
+  document.getElementById("prefixInput").value = ""; // auto-clear
+  const output = document.getElementById("output");
+  output.value = "";
+
+  if (!raw) return;
+
+  const superLong = document.getElementById("superLong").checked;
+  const xOnly = document.getElementById("xOnly").checked;
+
+  let seen = new Set();
+  let foundAny = false;
+
+  for (let i=raw.length; i>0; i--) {
+    const prefix = raw.slice(-i);
+    let matches = WORDS.filter(w => w.startsWith(prefix) && !seen.has(w));
+
+    if (xOnly) matches = matches.filter(w=>w.endsWith("x"));
+    if (!superLong) matches = matches.filter(w=>w.length<=12);
+
+    if (matches.length>0) {
+      foundAny = true;
+      let ranked;
+      if (superLong) ranked = matches.sort((a,b)=>b.length-a.length);
+      else ranked = matches.sort((a,b)=>scoreWord(b,superLong)-scoreWord(a,superLong));
+
+      const filteredRanked = ranked.filter(w=>scoreWord(w,superLong)>-500).slice(0,35);
+
+      const modeInfo = [];
+      if(xOnly) modeInfo.push("X-ONLY");
+      if(superLong) modeInfo.push("SUPER LONG");
+
+      output.value += `\nPrefix '${prefix}' [${modeInfo.join(" + ")}] → ${matches.length} words\n`;
+      filteredRanked.forEach(w=>{
+        output.value += w + "\n";
+        seen.add(w);
+      });
+    }
+  }
+
+  if(!foundAny) {
+    output.value += "NO WORDS FOUND" + (xOnly?" (X-ONLY)":"") + "\n";
+    if(xOnly) output.value += "Suggestions: Try disabling X-ONLY mode\n";
+  }
+}
+
+// ================= EVENTS =================
+document.getElementById("searchBtn").addEventListener("click", search);
+document.getElementById("prefixInput").addEventListener("keydown", e=>{
+  if(e.key === "Enter") search();
+});
+</script>
+</body>
+</html>
+       
